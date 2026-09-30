@@ -4277,6 +4277,13 @@ body {
     flex-direction: column;
   }
 }
+.brand-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 10px;
+  display: block;
+}
 
 
 

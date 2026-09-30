@@ -2,8 +2,12 @@ function Sidebar({ activeView, onNavigate, user, onLogout }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <span className="brand-icon">⚡</span>
-        <span className="brand-title">AI DSA Platform</span>
+        <img
+  src="/brand/delytra-logo.png"
+  alt="Delytra"
+  className="brand-logo"
+/>
+        <span className="brand-title">Delytra</span>
       </div>
 
       <nav className="sidebar-nav">
@@ -52,3 +56,4 @@ function Sidebar({ activeView, onNavigate, user, onLogout }) {
 }
 
 export default Sidebar;
+

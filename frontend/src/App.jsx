@@ -249,7 +249,7 @@ function UnauthenticatedApp({
     <div className="container">
       <div className="app-wrapper">
         <header className="app-header">
-          <h1 className="main-logo">AI DSA Platform</h1>
+          <h1 className="main-logo">Delytra</h1>
 
           <nav className="tab-nav">
             <button
@@ -327,3 +327,4 @@ function UnauthenticatedApp({
 }
 
 export default App;
+

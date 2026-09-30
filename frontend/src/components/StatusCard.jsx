@@ -1,7 +1,7 @@
 function StatusCard({ backendStatus, onRefresh }) {
   return (
     <div className="card">
-      <h1 className="title">AI DSA Platform</h1>
+      <h1 className="title">Delytra</h1>
       <div className="status-container">
         <div className="status-item">
           <span className="status-label">Frontend:</span>
@@ -28,3 +28,4 @@ function StatusCard({ backendStatus, onRefresh }) {
 }
 
 export default StatusCard;
+
