@@ -330,6 +330,7 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
 
     try {
       const response = await runCode(
+         problemId,
         language,
         currentCode
       );

@@ -1,15 +1,6 @@
 package com.aidsa.platform.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 import java.time.Instant;
 
@@ -46,6 +37,15 @@ public class Problem {
     @Column(name = "tags", nullable = false, length = 255)
     private String tags;
 
+    @Column(name = "source", nullable = false, length = 50)
+    private String source = "DELYTRA";
+
+    @Column(name = "source_problem_id", length = 255)
+    private String sourceProblemId;
+
+    @Column(name = "source_url", columnDefinition = "TEXT")
+    private String sourceUrl;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -64,6 +64,7 @@ public class Problem {
             Difficulty difficulty,
             String category,
             String tags) {
+
         this.problemNumber = problemNumber;
         this.title = title;
         this.slug = slug;
@@ -76,8 +77,13 @@ public class Problem {
 
     @PrePersist
     protected void onCreate() {
+
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
+
+        if (this.source == null || this.source.isBlank()) {
+            this.source = "DELYTRA";
+        }
     }
 
     @PreUpdate
@@ -99,14 +105,6 @@ public class Problem {
 
     public void setProblemNumber(Integer problemNumber) {
         this.problemNumber = problemNumber;
-    }
-
-    public String getConstraints() {
-        return constraints;
-    }
-
-    public void setConstraints(String constraints) {
-        this.constraints = constraints;
     }
 
     public String getTitle() {
@@ -133,6 +131,14 @@ public class Problem {
         this.description = description;
     }
 
+    public String getConstraints() {
+        return constraints;
+    }
+
+    public void setConstraints(String constraints) {
+        this.constraints = constraints;
+    }
+
     public Difficulty getDifficulty() {
         return difficulty;
     }
@@ -155,6 +161,30 @@ public class Problem {
 
     public void setTags(String tags) {
         this.tags = tags;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public String getSourceProblemId() {
+        return sourceProblemId;
+    }
+
+    public void setSourceProblemId(String sourceProblemId) {
+        this.sourceProblemId = sourceProblemId;
+    }
+
+    public String getSourceUrl() {
+        return sourceUrl;
+    }
+
+    public void setSourceUrl(String sourceUrl) {
+        this.sourceUrl = sourceUrl;
     }
 
     public Instant getCreatedAt() {

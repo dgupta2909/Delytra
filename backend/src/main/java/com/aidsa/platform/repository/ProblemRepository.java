@@ -10,9 +10,23 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface ProblemRepository extends JpaRepository<Problem, Long>, JpaSpecificationExecutor<Problem> {
+public interface ProblemRepository
+        extends JpaRepository<Problem, Long>,
+                JpaSpecificationExecutor<Problem> {
 
     Optional<Problem> findBySlug(String slug);
+
+    Optional<Problem> findBySourceAndSourceProblemId(
+            String source,
+            String sourceProblemId
+    );
+
+    boolean existsBySourceAndSourceProblemId(
+            String source,
+            String sourceProblemId
+    );
+
+    Optional<Problem> findTopByOrderByProblemNumberDesc();
 
     List<Problem> findByDifficulty(Difficulty difficulty);
 

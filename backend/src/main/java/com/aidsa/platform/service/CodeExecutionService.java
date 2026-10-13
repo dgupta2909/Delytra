@@ -2,6 +2,8 @@ package com.aidsa.platform.service;
 
 import com.aidsa.platform.dto.CodeRunRequest;
 import com.aidsa.platform.dto.CodeRunResponse;
+import com.aidsa.platform.model.TestCase;
+import com.aidsa.platform.repository.TestCaseRepository;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -13,254 +15,146 @@ import java.util.concurrent.*;
 @Service
 public class CodeExecutionService {
 
-    private static final long TIMEOUT_SECONDS = 5;
+    private static final long COMPILATION_TIMEOUT_SECONDS = 30;
+    private static final long EXECUTION_TIMEOUT_SECONDS = 5;
 
+    private final JavaDriverService javaDriverService;
+    private final TestCaseRepository testCaseRepository;
+
+    public CodeExecutionService(
+            JavaDriverService javaDriverService,
+            TestCaseRepository testCaseRepository
+    ) {
+        this.javaDriverService = javaDriverService;
+        this.testCaseRepository = testCaseRepository;
+    }
+
+    /*
+     * RUN CODE
+     *
+     * Executes the public test cases of the selected problem.
+     */
     public CodeRunResponse runCode(CodeRunRequest request) {
-        return runCode(request, "");
-    }
-    public CodeExecutionResult runCodeForSubmission(
-        CodeRunRequest request,
-        String input
-) {
 
-    if (request == null || request.getCode() == null ||
-            request.getCode().trim().isEmpty()) {
+        if (request == null || request.getProblemId() == null) {
 
-        return new CodeExecutionResult(
-                false,
-                "",
-                "Code cannot be empty.",
-                false,
-                false
-        );
-    }
-
-    String language = request.getLanguage();
-
-    if (language == null || language.trim().isEmpty()) {
-
-        return new CodeExecutionResult(
-                false,
-                "",
-                "Programming language is required.",
-                false,
-                false
-        );
-    }
-
-    Path tempDirectory = null;
-
-    try {
-
-        tempDirectory = Files.createTempDirectory("ai-dsa-code-");
-
-        String fileName;
-        List<String> compileCommand = null;
-        List<String> runCommand;
-
-        switch (language.toLowerCase()) {
-
-            case "java":
-
-                fileName = "Solution.java";
-
-                Files.writeString(
-                        tempDirectory.resolve(fileName),
-                        request.getCode(),
-                        StandardCharsets.UTF_8
-                );
-
-                compileCommand = List.of(
-                        "javac",
-                        fileName
-                );
-
-                runCommand = List.of(
-                        "java",
-                        "Solution"
-                );
-
-                break;
-
-            case "python":
-
-                fileName = "solution.py";
-
-                Files.writeString(
-                        tempDirectory.resolve(fileName),
-                        request.getCode(),
-                        StandardCharsets.UTF_8
-                );
-
-                runCommand = List.of(
-                        "python",
-                        fileName
-                );
-
-                break;
-
-            case "javascript":
-
-                fileName = "solution.js";
-
-                Files.writeString(
-                        tempDirectory.resolve(fileName),
-                        request.getCode(),
-                        StandardCharsets.UTF_8
-                );
-
-                runCommand = List.of(
-                        "node",
-                        fileName
-                );
-
-                break;
-
-            case "cpp":
-
-                fileName = "solution.cpp";
-
-                Files.writeString(
-                        tempDirectory.resolve(fileName),
-                        request.getCode(),
-                        StandardCharsets.UTF_8
-                );
-
-                compileCommand = List.of(
-                        "g++",
-                        fileName,
-                        "-o",
-                        ".\\solution.exe"
-                );
-
-                runCommand = List.of(
-                        tempDirectory.resolve("solution.exe").toString()
-                );
-
-                break;
-
-            default:
-
-                return new CodeExecutionResult(
-                        false,
-                        "",
-                        "Unsupported language: " + language,
-                        false,
-                        false
-                );
+            return new CodeRunResponse(
+                    false,
+                    "",
+                    "Problem ID is required."
+            );
         }
 
-        // COMPILE
+        List<TestCase> publicTestCases =
+                testCaseRepository.findByProblemIdAndHidden(
+                        request.getProblemId(),
+                        false
+                );
 
-        if (compileCommand != null) {
+        if (publicTestCases.isEmpty()) {
 
-            ProcessResult compileResult =
-                    executeProcess(
-                            compileCommand,
-                            tempDirectory,
-                            ""
+            return new CodeRunResponse(
+                    false,
+                    "",
+                    "No public test cases are available for this problem."
+            );
+        }
+
+        StringBuilder combinedOutput =
+                new StringBuilder();
+
+        for (TestCase testCase : publicTestCases) {
+
+            CodeExecutionResult result =
+                    execute(
+                            request,
+                            testCase.getInputData()
                     );
 
-            if (compileResult.timedOut) {
+            if (!result.isSuccess()) {
 
-                return new CodeExecutionResult(
+                return new CodeRunResponse(
                         false,
-                        "",
-                        "Compilation timed out.",
-                        true,
-                        true
+                        result.getOutput(),
+                        result.getError()
                 );
             }
 
-            if (compileResult.exitCode != 0) {
-
-                return new CodeExecutionResult(
-                        false,
-                        "",
-                        compileResult.error,
-                        true,
-                        false
-                );
-            }
+            combinedOutput
+                    .append(result.getOutput())
+                    .append(System.lineSeparator());
         }
 
-        // RUN
+        return new CodeRunResponse(
+                true,
+                combinedOutput.toString(),
+                ""
+        );
+    }
 
-        ProcessResult runResult =
-                executeProcess(
-                        runCommand,
-                        tempDirectory,
-                        input
-                );
+    /*
+     * DIRECT EXECUTION WITH CUSTOM INPUT
+     *
+     * Kept for internal use and existing functionality.
+     */
+    public CodeRunResponse runCode(
+            CodeRunRequest request,
+            String input
+    ) {
 
-        if (runResult.timedOut) {
+        CodeExecutionResult result =
+                execute(request, input);
+
+        return new CodeRunResponse(
+                result.isSuccess(),
+                result.getOutput(),
+                result.getError()
+        );
+    }
+
+    /*
+     * SUBMISSION EXECUTION
+     *
+     * SubmissionService uses this method with each test case.
+     * Hidden test cases remain protected.
+     */
+    public CodeExecutionResult runCodeForSubmission(
+            CodeRunRequest request,
+            String input
+    ) {
+
+        return execute(request, input);
+    }
+
+    private CodeExecutionResult execute(
+            CodeRunRequest request,
+            String input
+    ) {
+
+        if (request == null ||
+                request.getCode() == null ||
+                request.getCode().trim().isEmpty()) {
 
             return new CodeExecutionResult(
                     false,
                     "",
-                    "Execution timed out. Maximum allowed time is "
-                            + TIMEOUT_SECONDS + " seconds.",
-                    false,
-                    true
-            );
-        }
-
-        if (runResult.exitCode != 0) {
-
-            return new CodeExecutionResult(
-                    false,
-                    runResult.output,
-                    runResult.error,
+                    "Code cannot be empty.",
                     false,
                     false
             );
         }
 
-        return new CodeExecutionResult(
-                true,
-                runResult.output,
-                "",
-                false,
-                false
-        );
-
-    } catch (Exception e) {
-
-        return new CodeExecutionResult(
-                false,
-                "",
-                "Execution error: " + e.getMessage(),
-                false,
-                false
-        );
-
-    } finally {
-
-        if (tempDirectory != null) {
-            deleteDirectory(tempDirectory);
-        }
-    }
-}
-
-    public CodeRunResponse runCode(CodeRunRequest request, String input) {
-
-        if (request == null || request.getCode() == null ||
-                request.getCode().trim().isEmpty()) {
-
-            return new CodeRunResponse(
-                    false,
-                    "",
-                    "Code cannot be empty."
-            );
-        }
-
         String language = request.getLanguage();
 
-        if (language == null || language.trim().isEmpty()) {
-            return new CodeRunResponse(
+        if (language == null ||
+                language.trim().isEmpty()) {
+
+            return new CodeExecutionResult(
                     false,
                     "",
-                    "Programming language is required."
+                    "Programming language is required.",
+                    false,
+                    false
             );
         }
 
@@ -268,108 +162,134 @@ public class CodeExecutionService {
 
         try {
 
-            tempDirectory = Files.createTempDirectory("ai-dsa-code-");
+            tempDirectory =
+                    Files.createTempDirectory(
+                            "delytra-code-"
+                    );
 
-            String fileName;
+            String normalizedLanguage =
+                    language.trim().toLowerCase();
+
             List<String> compileCommand = null;
             List<String> runCommand;
 
-            switch (language.toLowerCase()) {
+            switch (normalizedLanguage) {
 
                 case "java":
 
-                    fileName = "Solution.java";
+                    if (request.getProblemId() == null) {
+
+                        return new CodeExecutionResult(
+                                false,
+                                "",
+                                "Problem ID is required for Java DSA execution.",
+                                false,
+                                false
+                        );
+                    }
+
+                    String generatedSource =
+                            javaDriverService.buildSource(
+                                    request.getProblemId(),
+                                    request.getCode()
+                            );
+
+                    Path javaFile =
+                            tempDirectory.resolve("Main.java");
 
                     Files.writeString(
-                            tempDirectory.resolve(fileName),
-                            request.getCode(),
+                            javaFile,
+                            generatedSource,
                             StandardCharsets.UTF_8
                     );
 
                     compileCommand = List.of(
                             "javac",
-                            fileName
+                            "Main.java"
                     );
 
                     runCommand = List.of(
                             "java",
-                            "Solution"
+                            "Main"
                     );
 
                     break;
 
                 case "python":
 
-                    fileName = "solution.py";
+                    Path pythonFile =
+                            tempDirectory.resolve("solution.py");
 
                     Files.writeString(
-                            tempDirectory.resolve(fileName),
+                            pythonFile,
                             request.getCode(),
                             StandardCharsets.UTF_8
                     );
 
                     runCommand = List.of(
                             "python",
-                            fileName
+                            "solution.py"
                     );
 
                     break;
 
                 case "javascript":
 
-                    fileName = "solution.js";
+                    Path javascriptFile =
+                            tempDirectory.resolve("solution.js");
 
                     Files.writeString(
-                            tempDirectory.resolve(fileName),
+                            javascriptFile,
                             request.getCode(),
                             StandardCharsets.UTF_8
                     );
 
                     runCommand = List.of(
                             "node",
-                            fileName
+                            "solution.js"
                     );
 
                     break;
 
                 case "cpp":
 
-                    fileName = "solution.cpp";
+                    Path cppFile =
+                            tempDirectory.resolve("solution.cpp");
 
                     Files.writeString(
-                            tempDirectory.resolve(fileName),
+                            cppFile,
                             request.getCode(),
                             StandardCharsets.UTF_8
                     );
 
                     compileCommand = List.of(
                             "g++",
-                            fileName,
+                            "solution.cpp",
                             "-o",
-                            ".\\solution.exe"
+                            "solution.exe"
                     );
 
-                    // Keep the absolute path because this fixed
-                    // the Windows CreateProcess issue.
                     runCommand = List.of(
-                            tempDirectory.resolve("solution.exe").toString()
+                            tempDirectory
+                                    .resolve("solution.exe")
+                                    .toString()
                     );
 
                     break;
 
                 default:
 
-                    return new CodeRunResponse(
+                    return new CodeExecutionResult(
                             false,
                             "",
-                            "Unsupported language: " + language
+                            "Unsupported language: " + language,
+                            false,
+                            false
                     );
             }
 
             /*
-             * ---------------------------------------------------------
              * COMPILE
-             * ---------------------------------------------------------
              */
 
             if (compileCommand != null) {
@@ -378,72 +298,97 @@ public class CodeExecutionService {
                         executeProcess(
                                 compileCommand,
                                 tempDirectory,
-                                ""
+                                "",
+                                COMPILATION_TIMEOUT_SECONDS
                         );
 
                 if (compileResult.timedOut) {
 
-                    return new CodeRunResponse(
+                    return new CodeExecutionResult(
                             false,
-                            "",
-                            "Compilation timed out."
+                            compileResult.output,
+                            "Compilation timed out. Maximum allowed time is "
+                                    + COMPILATION_TIMEOUT_SECONDS
+                                    + " seconds.",
+                            true,
+                            true
                     );
                 }
 
                 if (compileResult.exitCode != 0) {
 
-                    return new CodeRunResponse(
+                    return new CodeExecutionResult(
                             false,
-                            "",
-                            compileResult.error
+                            compileResult.output,
+                            compileResult.error,
+                            true,
+                            false
                     );
                 }
             }
 
             /*
-             * ---------------------------------------------------------
              * RUN
-             * ---------------------------------------------------------
              */
 
             ProcessResult runResult =
                     executeProcess(
                             runCommand,
                             tempDirectory,
-                            input
+                            input,
+                            EXECUTION_TIMEOUT_SECONDS
                     );
 
             if (runResult.timedOut) {
 
-                return new CodeRunResponse(
+                return new CodeExecutionResult(
                         false,
-                        "",
+                        runResult.output,
                         "Execution timed out. Maximum allowed time is "
-                                + TIMEOUT_SECONDS + " seconds."
+                                + EXECUTION_TIMEOUT_SECONDS
+                                + " seconds.",
+                        false,
+                        true
                 );
             }
 
             if (runResult.exitCode != 0) {
 
-                return new CodeRunResponse(
+                return new CodeExecutionResult(
                         false,
                         runResult.output,
-                        runResult.error
+                        runResult.error,
+                        false,
+                        false
                 );
             }
 
-            return new CodeRunResponse(
+            return new CodeExecutionResult(
                     true,
                     runResult.output,
-                    ""
+                    "",
+                    false,
+                    false
+            );
+
+        } catch (IllegalArgumentException e) {
+
+            return new CodeExecutionResult(
+                    false,
+                    "",
+                    e.getMessage(),
+                    false,
+                    false
             );
 
         } catch (Exception e) {
 
-            return new CodeRunResponse(
+            return new CodeExecutionResult(
                     false,
                     "",
-                    "Execution error: " + e.getMessage()
+                    "Execution error: " + e.getMessage(),
+                    false,
+                    false
             );
 
         } finally {
@@ -454,37 +399,34 @@ public class CodeExecutionService {
         }
     }
 
-    /*
-     * -------------------------------------------------------------
-     * PROCESS EXECUTION
-     * -------------------------------------------------------------
-     */
-
     private ProcessResult executeProcess(
             List<String> command,
             Path workingDirectory,
-            String input
+            String input,
+            long timeoutSeconds
     ) throws IOException, InterruptedException {
 
         ProcessBuilder processBuilder =
                 new ProcessBuilder(command);
 
-        processBuilder.directory(workingDirectory.toFile());
+        processBuilder.directory(
+                workingDirectory.toFile()
+        );
 
         processBuilder.redirectErrorStream(false);
 
-        Process process = processBuilder.start();
+        Process process =
+                processBuilder.start();
 
-        /*
-         * Send input to the program through stdin.
-         */
         if (input != null && !input.isEmpty()) {
 
             try (OutputStream outputStream =
                          process.getOutputStream()) {
 
                 outputStream.write(
-                        input.getBytes(StandardCharsets.UTF_8)
+                        input.getBytes(
+                                StandardCharsets.UTF_8
+                        )
                 );
 
                 outputStream.flush();
@@ -500,17 +442,21 @@ public class CodeExecutionService {
 
         Future<String> outputFuture =
                 executor.submit(() ->
-                        readStream(process.getInputStream())
+                        readStream(
+                                process.getInputStream()
+                        )
                 );
 
         Future<String> errorFuture =
                 executor.submit(() ->
-                        readStream(process.getErrorStream())
+                        readStream(
+                                process.getErrorStream()
+                        )
                 );
 
         boolean finished =
                 process.waitFor(
-                        TIMEOUT_SECONDS,
+                        timeoutSeconds,
                         TimeUnit.SECONDS
                 );
 
@@ -529,15 +475,15 @@ public class CodeExecutionService {
         }
 
         String output;
-
         String error;
 
         try {
 
-            output = outputFuture.get(
-                    1,
-                    TimeUnit.SECONDS
-            );
+            output =
+                    outputFuture.get(
+                            1,
+                            TimeUnit.SECONDS
+                    );
 
         } catch (Exception e) {
 
@@ -546,10 +492,11 @@ public class CodeExecutionService {
 
         try {
 
-            error = errorFuture.get(
-                    1,
-                    TimeUnit.SECONDS
-            );
+            error =
+                    errorFuture.get(
+                            1,
+                            TimeUnit.SECONDS
+                    );
 
         } catch (Exception e) {
 
@@ -566,14 +513,9 @@ public class CodeExecutionService {
         );
     }
 
-    /*
-     * -------------------------------------------------------------
-     * READ PROCESS STREAM
-     * -------------------------------------------------------------
-     */
-
-    private String readStream(InputStream inputStream)
-            throws IOException {
+    private String readStream(
+            InputStream inputStream
+    ) throws IOException {
 
         try (BufferedReader reader =
                      new BufferedReader(
@@ -598,13 +540,9 @@ public class CodeExecutionService {
         }
     }
 
-    /*
-     * -------------------------------------------------------------
-     * DELETE TEMPORARY DIRECTORY
-     * -------------------------------------------------------------
-     */
-
-    private void deleteDirectory(Path directory) {
+    private void deleteDirectory(
+            Path directory
+    ) {
 
         try {
 
@@ -613,7 +551,9 @@ public class CodeExecutionService {
             }
 
             Files.walk(directory)
-                    .sorted(Comparator.reverseOrder())
+                    .sorted(
+                            Comparator.reverseOrder()
+                    )
                     .forEach(path -> {
 
                         try {
@@ -626,12 +566,6 @@ public class CodeExecutionService {
         } catch (IOException ignored) {
         }
     }
-
-    /*
-     * -------------------------------------------------------------
-     * PROCESS RESULT
-     * -------------------------------------------------------------
-     */
 
     private static class ProcessResult {
 
@@ -646,7 +580,6 @@ public class CodeExecutionService {
                 String error,
                 boolean timedOut
         ) {
-
             this.exitCode = exitCode;
             this.output = output;
             this.error = error;

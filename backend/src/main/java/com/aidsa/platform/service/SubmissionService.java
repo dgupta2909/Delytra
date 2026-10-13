@@ -95,9 +95,10 @@ public List<SubmissionResponse> getSubmissionHistory(Long userId) {
         List<TestCaseResult> testCaseResults = new ArrayList<>();
 
         CodeRunRequest codeRunRequest = new CodeRunRequest(
-                request.getLanguage(),
-                request.getCode()
-        );
+        request.getProblemId(),
+        request.getLanguage(),
+        request.getCode()
+);
 
         int testCaseNumber = 1;
 

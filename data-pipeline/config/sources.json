@@ -1,0 +1,39 @@
+﻿{
+  "pipeline": {
+    "name": "Delytra Problem Ingestion Pipeline",
+    "version": "1.0",
+    "target_database": "ai_dsa_platform",
+    "deduplication_enabled": true,
+    "testcase_generation_enabled": true
+  },
+  "sources": [
+    {
+      "id": "DELYTRA",
+      "name": "Delytra Internal",
+      "type": "internal",
+      "enabled": true,
+      "status": "ACTIVE"
+    },
+    {
+      "id": "LEETCODE",
+      "name": "LeetCode",
+      "type": "external",
+      "enabled": false,
+      "status": "PENDING_SOURCE_VALIDATION"
+    },
+    {
+      "id": "GFG",
+      "name": "GeeksforGeeks",
+      "type": "external",
+      "enabled": false,
+      "status": "PENDING_SOURCE_VALIDATION"
+    },
+    {
+      "id": "OTHER",
+      "name": "Other Permitted Sources",
+      "type": "external",
+      "enabled": false,
+      "status": "PENDING_SOURCE_VALIDATION"
+    }
+  ]
+}

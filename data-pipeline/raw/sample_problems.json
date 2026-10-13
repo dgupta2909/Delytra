@@ -1,0 +1,50 @@
+﻿[
+  {
+    "source": "DELYTRA_TEST",
+    "source_problem_id": "test-001",
+    "source_url": "https://example.com/test-001",
+    "title": "Two Sum",
+    "difficulty": "Easy",
+    "category": "Array",
+    "tags": ["Array", "Hash Table"],
+    "description": "Find two values whose sum equals the target.",
+    "constraints": "Exactly one solution exists.",
+    "examples": [
+      {
+        "input": "nums = [2,7,11,15], target = 9",
+        "output": "[0,1]"
+      }
+    ],
+    "test_cases": [
+      {
+        "input": "4\n2 7 11 15\n9",
+        "expected_output": "0 1",
+        "hidden": false
+      },
+      {
+        "input": "3\n3 2 4\n6",
+        "expected_output": "1 2",
+        "hidden": true
+      }
+    ]
+  },
+  {
+    "source": "DELYTRA_TEST",
+    "source_problem_id": "test-002",
+    "source_url": "https://example.com/test-002",
+    "title": "Binary Search",
+    "difficulty": "MEDIUM",
+    "category": "Binary Search",
+    "tags": "Array, Binary Search",
+    "description": "Search for a target in a sorted array.",
+    "constraints": "The array is sorted.",
+    "examples": [],
+    "test_cases": [
+      {
+        "input": "6\n-1 0 3 5 9 12\n9",
+        "expected_output": "4",
+        "hidden": false
+      }
+    ]
+  }
+]
